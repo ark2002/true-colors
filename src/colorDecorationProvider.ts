@@ -382,59 +382,6 @@ export class ColorDecorationProvider {
         this.decorations.delete(documentUri);
     }
 
-    public async openColorPicker(document: vscode.TextDocument, range: vscode.Range): Promise<void> {
-        const text = document.getText(range);
-        const color = parseColorValue(text);
-
-        if (!color) {
-            vscode.window.showErrorMessage('Could not parse color value');
-            return;
-        }
-
-        // Convert to VSCode color format
-        const vscodeColor = new vscode.Color(
-            color.red / 255,
-            color.green / 255,
-            color.blue / 255,
-            color.alpha !== undefined ? color.alpha : 1
-        );
-
-        // Show color picker
-        const result = await vscode.window.showQuickPick(
-            [
-                {
-                    label: '$(symbol-color) Pick Color',
-                    description: 'Open color picker to change this color',
-                }
-            ],
-            {
-                placeHolder: `Current color: ${toRgbaString(color)}`
-            }
-        );
-
-        if (result) {
-            // Create input box for RGB values
-            const newValue = await vscode.window.showInputBox({
-                prompt: 'Enter RGB or RGBA values',
-                value: text,
-                validateInput: (value) => {
-                    const parsed = parseColorValue(value);
-                    return parsed ? null : 'Invalid color format. Use: "R G B" or "R G B / alpha"';
-                }
-            });
-
-            if (newValue) {
-                const editor = vscode.window.activeTextEditor;
-                if (editor) {
-                    await editor.edit((editBuilder) => {
-                        editBuilder.replace(range, newValue);
-                    });
-                    this.updateDecorations(document);
-                }
-            }
-        }
-    }
-
     public clearDocumentColors(documentUri: string): void {
         // Clear decorations and color variables for a specific document
         this.clearDecorations(documentUri);

@@ -5,6 +5,11 @@ All notable changes to the "True Colors" extension will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.2] - 2026-02-17
+
+### Removed
+- **Pick Color command** - Removed the "True Colors: Pick Color" command and its Quick Pick / input flow. The extension now focuses on color previews and hover tooltips only.
+
 ## [0.0.1] - 2026-02-17
 
 ### Initial Release
@@ -38,11 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tailwind classes: `text-red-500 bg-blue-200 border-green-300`
 
 #### Commands
-- `True Colors: Pick Color` - Open color picker for CSS variables
 - `True Colors: Refresh Colors` - Manually refresh color cache
 - `True Colors: Switch Color Mode` - Switch between light/dark/custom contexts
 
 #### Configuration
 - `trueColors.colorMode` - Select which CSS context to use (auto, light, dark, or custom)
 
-[0.0.1]: https://github.com/aryak-lahane/true-colors/releases/tag/v0.0.1
+[0.0.1]: https://github.com/ark2002/true-colors/releases/tag/v0.0.1
+[0.0.2]: https://github.com/ark2002/true-colors/releases/tag/v0.0.2

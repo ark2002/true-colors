@@ -157,14 +157,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Register color picker command
-    const pickColorCommand = vscode.commands.registerCommand(
-        'cssColorPreview.pickColor',
-        async (document: vscode.TextDocument, range: vscode.Range) => {
-            await decorationProvider?.openColorPicker(document, range);
-        }
-    );
-
     // Register refresh command
     const refreshCommand = vscode.commands.registerCommand(
         'cssColorPreview.refresh',
@@ -269,7 +261,6 @@ export function activate(context: vscode.ExtensionContext) {
         disposable, 
         editorDisposable, 
         saveDisposable, 
-        pickColorCommand, 
         refreshCommand,
         switchModeCommand,
         configDisposable,

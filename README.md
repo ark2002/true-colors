@@ -78,8 +78,8 @@ stroke: rgb(var(--neutral-outline));
 ## Usage
 
 1. Open any CSS file containing CSS custom properties
-2. Color squares will automatically appear in the gutter for detected color variables
-3. Click on a color square to open the color picker and edit the value
+2. Color squares will automatically appear in the gutter and inline for detected color variables and Tailwind classes
+3. Hover over a variable or class to see the resolved color in a tooltip
 
 ### Multi-Context Support (Light/Dark Mode)
 

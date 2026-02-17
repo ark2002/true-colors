@@ -2,7 +2,7 @@
   "name": "true-colors",
   "displayName": "True Colors",
   "description": "Shows color previews for CSS custom properties with RGB/RGBA values",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "aryak-lahane",
   "icon": "icon.png",
   "license": "MIT",
@@ -28,7 +28,6 @@
     "rgba",
     "theme",
     "design-system",
-    "color-picker",
     "syntax-highlighting"
   ],
   "repository": {
@@ -66,10 +65,6 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "cssColorPreview.pickColor",
-        "title": "True Colors: Pick Color"
-      },
       {
         "command": "cssColorPreview.refresh",
         "title": "True Colors: Refresh Colors"
