@@ -98,11 +98,14 @@
     "esbuild:prod": "npm run esbuild -- --minify",
     "watch": "npm run esbuild:watch",
     "package": "vsce package",
+    "publish": "npm run package && dotenv -e .env -- sh -c 'vsce publish --packagePath ./*.vsix && ovsx publish ./*.vsix'",
+    "publish:openvsx": "npm run package && dotenv -e .env -- ovsx publish ./*.vsix",
     "pretest": "npm run compile"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.80.0",
+    "dotenv-cli": "^7.4.2",
     "esbuild": "^0.27.3",
     "typescript": "^5.0.0"
   }
