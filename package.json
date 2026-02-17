@@ -93,8 +93,8 @@
     "esbuild:prod": "npm run esbuild -- --minify",
     "watch": "npm run esbuild:watch",
     "package": "vsce package",
-    "publish": "npm run package && dotenv -e .env -- sh -c 'vsce publish --packagePath ./*.vsix && ovsx publish ./*.vsix'",
-    "publish:openvsx": "npm run package && dotenv -e .env -- ovsx publish ./*.vsix",
+    "publish": "npm run package && node -e \"require('dotenv').config({path:'.env'}); const v=require('./package.json').version; const p='true-colors-'+v+'.vsix'; const {execSync}=require('child_process'); execSync('vsce',['publish','--packagePath',p],{stdio:'inherit',env:process.env}); execSync('ovsx',['publish',p],{stdio:'inherit',env:process.env});\"",
+    "publish:openvsx": "npm run package && node -e \"require('dotenv').config({path:'.env'}); const v=require('./package.json').version; const p='true-colors-'+v+'.vsix'; require('child_process').execSync('ovsx',['publish',p],{stdio:'inherit',env:process.env});\"",
     "pretest": "npm run compile"
   },
   "devDependencies": {
