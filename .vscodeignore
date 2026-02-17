@@ -3,6 +3,8 @@
 src/**
 out/**
 .gitignore
+.env
+.env.example
 tsconfig.json
 *.md
 !README.md
