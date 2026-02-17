@@ -1,0 +1,109 @@
+{
+  "name": "true-colors",
+  "displayName": "True Colors",
+  "description": "Shows color previews for CSS custom properties with RGB/RGBA values",
+  "version": "0.0.1",
+  "publisher": "aryak-lahane",
+  "icon": "icon.png",
+  "license": "MIT",
+  "homepage": "https://github.com/ark2002/true-colors#readme",
+  "bugs": {
+    "url": "https://github.com/ark2002/true-colors/issues"
+  },
+  "qna": "marketplace",
+  "galleryBanner": {
+    "color": "#1a202c",
+    "theme": "dark"
+  },
+  "keywords": [
+    "css",
+    "color",
+    "colors",
+    "preview",
+    "tailwind",
+    "tailwindcss",
+    "css-variables",
+    "css-custom-properties",
+    "rgb",
+    "rgba",
+    "theme",
+    "design-system",
+    "color-picker",
+    "syntax-highlighting"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ark2002/true-colors"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Formatters", "Programming Languages", "Visualization"],
+  "badges": [
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/v/aryak-lahane.true-colors",
+      "href": "https://marketplace.visualstudio.com/items?itemName=aryak-lahane.true-colors",
+      "description": "Version"
+    },
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/i/aryak-lahane.true-colors",
+      "href": "https://marketplace.visualstudio.com/items?itemName=aryak-lahane.true-colors",
+      "description": "Installs"
+    },
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/r/aryak-lahane.true-colors",
+      "href": "https://marketplace.visualstudio.com/items?itemName=aryak-lahane.true-colors",
+      "description": "Rating"
+    }
+  ],
+  "activationEvents": [
+    "onLanguage:css",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cssColorPreview.pickColor",
+        "title": "True Colors: Pick Color"
+      },
+      {
+        "command": "cssColorPreview.refresh",
+        "title": "True Colors: Refresh Colors"
+      },
+      {
+        "command": "cssColorPreview.switchMode",
+        "title": "True Colors: Switch Color Mode"
+      }
+    ],
+    "configuration": {
+      "title": "True Colors",
+      "properties": {
+        "trueColors.colorMode": {
+          "type": "string",
+          "default": "auto",
+          "description": "Which CSS context to use for color display (e.g., 'light', 'dark', 'theme-blue'). Set to 'auto' to use the last defined value. Use the 'Switch Color Mode' command to see detected contexts."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run esbuild:prod",
+    "compile": "tsc -p ./",
+    "esbuild": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "esbuild:watch": "npm run esbuild -- --watch",
+    "esbuild:prod": "npm run esbuild -- --minify",
+    "watch": "npm run esbuild:watch",
+    "package": "vsce package",
+    "pretest": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.0.0"
+  }
+}

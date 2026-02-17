@@ -1,0 +1,10 @@
+.vscode/**
+.vscode-test/**
+src/**
+out/**
+.gitignore
+tsconfig.json
+*.md
+!README.md
+!CHANGELOG.md
+node_modules
