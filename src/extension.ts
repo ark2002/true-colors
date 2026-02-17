@@ -300,24 +300,25 @@ async function initializeColorVariables() {
     log(`Found ${cssFiles.length} CSS files:`);
     cssFiles.forEach(file => log(`  - ${file.fsPath}`));
     
-    // Scan each CSS file to build global color variable registry
-    for (const fileUri of cssFiles) {
+    // Scan each CSS file to build global color variable registry (merge so all files' contexts are kept)
+    cssFiles.forEach((fileUri, index) => {
         try {
             // Check file size before reading (skip files > 1MB for performance)
             const stats = fs.statSync(fileUri.fsPath);
             if (stats.size > 1024 * 1024) {
                 log(`Skipping large file (${(stats.size / 1024 / 1024).toFixed(2)}MB): ${fileUri.fsPath}`);
-                continue;
+                return;
             }
-            
+
             // Read file directly using fs instead of openTextDocument to avoid 50MB limit
             const fileContent = fs.readFileSync(fileUri.fsPath, 'utf8');
-            decorationProvider?.scanCssContentForColors(fileUri.fsPath, fileContent);
+            // First file replaces; subsequent files merge so multi-file contexts (e.g. .light in one file, .dark in another) are accumulated
+            decorationProvider?.scanCssContentForColors(fileUri.fsPath, fileContent, index > 0 ? { merge: true } : undefined);
             log(`Successfully scanned: ${fileUri.fsPath}`);
         } catch (error) {
             log(`Error scanning ${fileUri.fsPath}: ${error}`);
         }
-    }
+    });
     
     log('Initialization complete');
     log(`Total color variables in registry: ${decorationProvider?.getColorVariableCount()}`);

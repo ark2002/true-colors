@@ -22,11 +22,17 @@ export class ColorDecorationProvider {
     private readonly MAX_CACHE_SIZE = 100; // Limit cache size to prevent memory leak
     private detectedContexts: Set<string> = new Set(); // Track detected contexts (.light, .dark, etc.)
 
-    public scanCssContentForColors(fileName: string, content: string): void {
-        // Clear previous contexts for re-scanning
-        this.detectedContexts.clear();
-        this.contextualColorVariables.clear();
-        
+    /**
+     * Scan CSS content for color variables and context (.light, .dark, etc.).
+     * @param merge When true, merge into existing context/variables (for multi-file initial scan).
+     *              When false/omitted, clear first (for single-file update on save/file change).
+     */
+    public scanCssContentForColors(fileName: string, content: string, options?: { merge?: boolean }): void {
+        if (options?.merge !== true) {
+            this.detectedContexts.clear();
+            this.contextualColorVariables.clear();
+        }
+
         const lines = content.split('\n');
         let bracketDepth = 0;
         const contextStack: Array<{name: string, depth: number}> = []; // Stack to track contexts with their depth
