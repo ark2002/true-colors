@@ -2,7 +2,7 @@
   "name": "true-colors",
   "displayName": "True Colors",
   "description": "Shows color previews for CSS custom properties with RGB/RGBA values",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "aryak-lahane",
   "icon": "icon.png",
   "license": "MIT",
@@ -72,6 +72,10 @@
       {
         "command": "cssColorPreview.switchMode",
         "title": "True Colors: Switch Color Mode"
+      },
+      {
+        "command": "cssColorPreview.switchFileTypes",
+        "title": "True Colors: Switch File Types"
       }
     ],
     "configuration": {
@@ -81,6 +85,27 @@
           "type": "string",
           "default": "auto",
           "description": "Which CSS context to use for color display (e.g., 'light', 'dark', 'theme-blue'). Set to 'auto' to use the last defined value. Use the 'Switch Color Mode' command to see detected contexts."
+        },
+        "trueColors.enabledLanguages": {
+          "type": "array",
+          "default": [
+            "css",
+            "ts",
+            "tsx",
+            "js",
+            "jsx"
+          ],
+          "description": "Choose which supported file types should show True Colors decorations.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "css",
+              "ts",
+              "tsx",
+              "js",
+              "jsx"
+            ]
+          }
         }
       }
     }

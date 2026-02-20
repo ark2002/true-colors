@@ -10,6 +10,21 @@ let debounceTimer: NodeJS.Timeout | undefined;
 let fileChangeTimer: NodeJS.Timeout | undefined;
 
 const SUPPORTED_LANGUAGES = ['css', 'typescript', 'typescriptreact', 'javascript', 'javascriptreact'];
+const FILE_TYPE_TO_LANGUAGE: Record<string, string> = {
+    css: 'css',
+    ts: 'typescript',
+    tsx: 'typescriptreact',
+    js: 'javascript',
+    jsx: 'javascriptreact'
+};
+const DEFAULT_ENABLED_FILE_TYPES = ['css', 'ts', 'tsx', 'js', 'jsx'];
+const LANGUAGE_TO_FILE_TYPE: Record<string, string> = {
+    css: 'css',
+    typescript: 'ts',
+    typescriptreact: 'tsx',
+    javascript: 'js',
+    javascriptreact: 'jsx'
+};
 const DEBOUNCE_DELAY_MS = 500; // Delay before updating decorations after typing stops (Microsoft recommended)
 
 // Create output channel for logging
@@ -21,6 +36,46 @@ function log(message: string) {
     }
     const timestamp = new Date().toISOString();
     outputChannel.appendLine(`[${timestamp}] ${message}`);
+}
+
+function getEnabledFileTypes(): string[] {
+    const config = vscode.workspace.getConfiguration('trueColors');
+    const configured = config.get<string[]>('enabledLanguages', DEFAULT_ENABLED_FILE_TYPES);
+    const normalized = (configured || [])
+        .map((value) => FILE_TYPE_TO_LANGUAGE[value] ? value : LANGUAGE_TO_FILE_TYPE[value] || '')
+        .filter((value): value is string => Boolean(value));
+
+    const unique = Array.from(new Set(normalized));
+    if (unique.length === 0) {
+        return DEFAULT_ENABLED_FILE_TYPES;
+    }
+
+    return unique;
+}
+
+function getEnabledLanguages(): Set<string> {
+    const validConfigured = getEnabledFileTypes()
+        .map((fileType) => FILE_TYPE_TO_LANGUAGE[fileType]);
+
+    if (validConfigured.length === 0) {
+        return new Set(SUPPORTED_LANGUAGES);
+    }
+
+    return new Set(validConfigured);
+}
+
+function isDecorationEnabledForLanguage(languageId: string): boolean {
+    return getEnabledLanguages().has(languageId);
+}
+
+function refreshVisibleEditors(): void {
+    vscode.window.visibleTextEditors.forEach((editor) => {
+        if (isDecorationEnabledForLanguage(editor.document.languageId)) {
+            decorationProvider?.updateDecorations(editor.document);
+        } else {
+            decorationProvider?.clearDocumentColors(editor.document.uri.toString());
+        }
+    });
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -51,7 +106,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register for text document changes with debouncing
     const disposable = vscode.workspace.onDidChangeTextDocument((event) => {
-        if (SUPPORTED_LANGUAGES.includes(event.document.languageId)) {
+        if (isDecorationEnabledForLanguage(event.document.languageId)) {
             // Clear previous timer
             if (debounceTimer) {
                 clearTimeout(debounceTimer);
@@ -66,8 +121,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register for active editor changes
     const editorDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (editor && SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-            decorationProvider?.updateDecorations(editor.document);
+        if (editor) {
+            if (isDecorationEnabledForLanguage(editor.document.languageId)) {
+                decorationProvider?.updateDecorations(editor.document);
+            } else {
+                decorationProvider?.clearDocumentColors(editor.document.uri.toString());
+            }
         }
     });
 
@@ -90,11 +149,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 
                 // Refresh all visible editors
-                vscode.window.visibleTextEditors.forEach((editor) => {
-                    if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-                        decorationProvider?.updateDecorations(editor.document);
-                    }
-                });
+                refreshVisibleEditors();
             } catch (error) {
                 log(`Error refreshing after save: ${error}`);
             }
@@ -127,11 +182,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 
                 // Refresh all visible editors
-                vscode.window.visibleTextEditors.forEach((editor) => {
-                    if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-                        decorationProvider?.updateDecorations(editor.document);
-                    }
-                });
+                refreshVisibleEditors();
             } catch (error) {
                 log(`Error refreshing after CSS change: ${error}`);
             }
@@ -143,19 +194,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     fileWatcher.onDidDelete((uri) => {
         decorationProvider?.clearDocumentColors(uri.toString());
-        vscode.window.visibleTextEditors.forEach((editor) => {
-            if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-                decorationProvider?.updateDecorations(editor.document);
-            }
-        });
+        refreshVisibleEditors();
     });
 
     // Update decorations for currently open editors
-    vscode.window.visibleTextEditors.forEach((editor) => {
-        if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-            decorationProvider?.updateDecorations(editor.document);
-        }
-    });
+    refreshVisibleEditors();
 
     // Register refresh command
     const refreshCommand = vscode.commands.registerCommand(
@@ -163,12 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
         async () => {
             vscode.window.showInformationMessage('Refreshing CSS color variables...');
             await initializeColorVariables();
-            // Refresh all visible editors
-            vscode.window.visibleTextEditors.forEach((editor) => {
-                if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-                    decorationProvider?.updateDecorations(editor.document);
-                }
-            });
+            refreshVisibleEditors();
             vscode.window.showInformationMessage('CSS colors refreshed!');
         }
     );
@@ -222,21 +260,102 @@ export function activate(context: vscode.ExtensionContext) {
                     hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
                 }
                 
-                // Refresh all visible editors
-                vscode.window.visibleTextEditors.forEach((editor) => {
-                    if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-                        decorationProvider?.updateDecorations(editor.document);
-                    }
-                });
+                refreshVisibleEditors();
                 
                 vscode.window.showInformationMessage(`True Colors: Switched to "${selected.label}" context`);
             }
         }
     );
+
+    const switchFileTypesCommand = vscode.commands.registerCommand(
+        'cssColorPreview.switchFileTypes',
+        async () => {
+            const config = vscode.workspace.getConfiguration('trueColors');
+            const fileTypeMeta = [
+                { key: 'css', name: 'CSS (.css)' },
+                { key: 'ts', name: 'TypeScript (.ts)' },
+                { key: 'tsx', name: 'TypeScript React (.tsx)' },
+                { key: 'js', name: 'JavaScript (.js)' },
+                { key: 'jsx', name: 'JavaScript React (.jsx)' }
+            ];
+
+            type FileTypePickerItem = vscode.QuickPickItem & { action: string; key?: string };
+            const enabled = new Set(getEnabledFileTypes());
+            let updating = false;
+
+            const buildItems = (): FileTypePickerItem[] => ([
+                    ...fileTypeMeta.map((item) => ({
+                        label: `${enabled.has(item.key) ? '$(check)' : '$(circle-outline)'} ${item.name}`,
+                        detail: enabled.has(item.key) ? 'Enabled' : 'Disabled',
+                        action: 'toggle',
+                        key: item.key
+                    })),
+                    {
+                        label: 'Enable all file types',
+                        detail: 'Turn decorations on for css, ts, tsx, js, jsx',
+                        action: '__all__'
+                    }
+                ]);
+
+            const applySelection = async () => {
+                const chosenFileTypes = enabled.size > 0 ? Array.from(enabled) : DEFAULT_ENABLED_FILE_TYPES;
+                await config.update('enabledLanguages', chosenFileTypes, vscode.ConfigurationTarget.Global);
+                refreshVisibleEditors();
+            };
+
+            const picker = vscode.window.createQuickPick<FileTypePickerItem>();
+            picker.title = 'True Colors: Configure File Types';
+            picker.placeholder = 'Press Enter to toggle. Changes apply instantly. Esc to close.';
+            picker.ignoreFocusOut = true;
+            picker.canSelectMany = false;
+            picker.items = buildItems();
+
+            picker.onDidAccept(async () => {
+                if (updating) {
+                    return;
+                }
+
+                const choice = picker.selectedItems[0];
+                if (!choice) {
+                    return;
+                }
+
+                updating = true;
+                try {
+                    if (choice.action === '__all__') {
+                        enabled.clear();
+                        DEFAULT_ENABLED_FILE_TYPES.forEach((fileType) => enabled.add(fileType));
+                    } else if (choice.action === 'toggle' && choice.key) {
+                        if (enabled.has(choice.key)) {
+                            enabled.delete(choice.key);
+                        } else {
+                            enabled.add(choice.key);
+                        }
+                    }
+
+                    await applySelection();
+                    picker.items = buildItems();
+
+                    const next = picker.items.find((item) => item.key === choice.key || item.action === choice.action);
+                    if (next) {
+                        picker.activeItems = [next];
+                    }
+                } finally {
+                    updating = false;
+                }
+            });
+
+            picker.onDidHide(() => {
+                picker.dispose();
+            });
+
+            picker.show();
+        }
+    );
     
     // Listen for configuration changes
     const configDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('trueColors.colorMode')) {
+        if (event.affectsConfiguration('trueColors.colorMode') || event.affectsConfiguration('trueColors.enabledLanguages')) {
             const config = vscode.workspace.getConfiguration('trueColors');
             const mode = config.get<string>('colorMode', 'auto');
             
@@ -248,12 +367,7 @@ export function activate(context: vscode.ExtensionContext) {
                 hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
             }
             
-            // Refresh all visible editors
-            vscode.window.visibleTextEditors.forEach((editor) => {
-                if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
-                    decorationProvider?.updateDecorations(editor.document);
-                }
-            });
+            refreshVisibleEditors();
         }
     });
 
@@ -263,6 +377,7 @@ export function activate(context: vscode.ExtensionContext) {
         saveDisposable, 
         refreshCommand,
         switchModeCommand,
+        switchFileTypesCommand,
         configDisposable,
         fileWatcher,
         hoverProviderDisposable
@@ -337,10 +452,13 @@ async function initializeColorVariables() {
     }
     
     // Now update all currently visible editors with the loaded colors
+    const enabledLanguages = getEnabledLanguages();
     vscode.window.visibleTextEditors.forEach((editor) => {
-        if (SUPPORTED_LANGUAGES.includes(editor.document.languageId)) {
+        if (enabledLanguages.has(editor.document.languageId)) {
             log(`Updating visible editor: ${editor.document.fileName} (language: ${editor.document.languageId})`);
             decorationProvider?.updateDecorations(editor.document);
+        } else {
+            decorationProvider?.clearDocumentColors(editor.document.uri.toString());
         }
     });
 }

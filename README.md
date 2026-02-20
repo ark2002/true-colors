@@ -13,6 +13,7 @@ A VSCode extension that displays color previews for CSS custom properties (varia
 - 💡 **Hover Tooltips**: Shows color info when you hover over variables or classes
 - 🎯 **Tailwind CSS Support**: Detects and shows colors for Tailwind utility classes
 - 🌓 **Multi-Context Support**: Detect and switch between light/dark/custom color modes
+- 🗂️ **File Type Control**: Choose where decorations appear (`css`, `ts`, `tsx`, `js`, `jsx`)
 - 🔄 **Auto-Refresh**: Updates when CSS files change
 - ⚡ **Optimized Performance**: esbuild bundling, debounced updates, LRU caching, efficient rendering
 - 🌐 **VSCode Web Compatible**: Works on github.dev and vscode.dev
@@ -108,12 +109,38 @@ If your CSS has colors defined in different contexts:
 
 The extension automatically detects ANY class-based contexts (`.theme-blue`, `.mobile`, `.print`, etc.)
 
+### File Type Selection
+
+Control which file types receive decorations:
+
+**Command palette flow (recommended):**
+1. Press `Cmd+Shift+P`
+2. Run `True Colors: Switch File Types`
+3. Toggle file types (`css`, `ts`, `tsx`, `js`, `jsx`)
+4. Changes apply instantly
+
+**Settings flow:**
+- Open Settings (`Cmd+,`)
+- Search `trueColors.enabledLanguages`
+- Set a subset such as:
+
+```json
+"trueColors.enabledLanguages": ["css", "tsx", "jsx"]
+```
+
+Supported values:
+- `css`
+- `ts`
+- `tsx`
+- `js`
+- `jsx`
+
 ## Installation
 
 ### From VSIX File
 
 ```bash
-code --install-extension ~/Documents/true-colors/true-colors-0.0.1.vsix
+code --install-extension ~/Documents/true-colors/true-colors-0.0.3.vsix
 ```
 
 Or via VSCode: Extensions → `...` → Install from VSIX
