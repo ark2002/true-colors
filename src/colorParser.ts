@@ -53,36 +53,3 @@ export function toRgbaString(color: ParsedColor): string {
     return `rgba(${color.red}, ${color.green}, ${color.blue}, ${alpha})`;
 }
 
-/**
- * Converts ParsedColor to hex string
- */
-export function toHexString(color: ParsedColor): string {
-    const r = color.red.toString(16).padStart(2, '0');
-    const g = color.green.toString(16).padStart(2, '0');
-    const b = color.blue.toString(16).padStart(2, '0');
-    return `#${r}${g}${b}`;
-}
-
-/**
- * Converts hex color to RGB format string
- */
-export function hexToRgb(hex: string): string | null {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) {
-        return null;
-    }
-    const r = parseInt(result[1], 16);
-    const g = parseInt(result[2], 16);
-    const b = parseInt(result[3], 16);
-    return `${r} ${g} ${b}`;
-}
-
-/**
- * Formats color value with optional alpha
- */
-export function formatColorValue(red: number, green: number, blue: number, alpha?: number): string {
-    if (alpha !== undefined && alpha < 1) {
-        return `${red} ${green} ${blue} / ${alpha}`;
-    }
-    return `${red} ${green} ${blue}`;
-}

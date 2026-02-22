@@ -2,7 +2,7 @@
   "name": "true-colors",
   "displayName": "True Colors",
   "description": "Shows color previews for CSS custom properties with RGB/RGBA values",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "aryak-lahane",
   "icon": "icon.png",
   "license": "MIT",
@@ -47,7 +47,12 @@
     {
       "url": "https://img.shields.io/visual-studio-marketplace/i/aryak-lahane.true-colors",
       "href": "https://marketplace.visualstudio.com/items?itemName=aryak-lahane.true-colors",
-      "description": "Installs"
+      "description": "VS Marketplace Installs"
+    },
+    {
+      "url": "https://img.shields.io/open-vsx/dt/aryak-lahane/true-colors",
+      "href": "https://open-vsx.org/extension/aryak-lahane/true-colors",
+      "description": "Open VSX Installs"
     },
     {
       "url": "https://img.shields.io/visual-studio-marketplace/r/aryak-lahane.true-colors",
@@ -76,6 +81,10 @@
       {
         "command": "cssColorPreview.switchFileTypes",
         "title": "True Colors: Switch File Types"
+      },
+      {
+        "command": "cssColorPreview.switchDecorationStyle",
+        "title": "True Colors: Switch Decoration Style"
       }
     ],
     "configuration": {
@@ -85,6 +94,19 @@
           "type": "string",
           "default": "auto",
           "description": "Which CSS context to use for color display (e.g., 'light', 'dark', 'theme-blue'). Set to 'auto' to use the last defined value. Use the 'Switch Color Mode' command to see detected contexts."
+        },
+        "trueColors.decorationStyle": {
+          "type": "string",
+          "default": "highlight",
+          "enum": [
+            "highlight",
+            "patch"
+          ],
+          "enumDescriptions": [
+            "Highlight the entire token with the color as its background.",
+            "Show a small color swatch inline before the token, leaving the text unstyled."
+          ],
+          "description": "How color decorations are displayed in the editor."
         },
         "trueColors.enabledLanguages": {
           "type": "array",
@@ -118,8 +140,8 @@
     "esbuild:prod": "npm run esbuild -- --minify",
     "watch": "npm run esbuild:watch",
     "package": "vsce package",
-    "publish": "npm run package && node -e \"require('dotenv').config({path:'.env'}); const v=require('./package.json').version; const p='true-colors-'+v+'.vsix'; const {execSync}=require('child_process'); execSync('vsce',['publish','--packagePath',p],{stdio:'inherit',env:process.env}); execSync('ovsx',['publish',p],{stdio:'inherit',env:process.env});\"",
-    "publish:openvsx": "npm run package && node -e \"require('dotenv').config({path:'.env'}); const v=require('./package.json').version; const p='true-colors-'+v+'.vsix'; require('child_process').execSync('ovsx',['publish',p],{stdio:'inherit',env:process.env});\"",
+    "publish": "npm run package && node -e \"require('dotenv').config({path:'.env'}); const v=require('./package.json').version; const p='true-colors-'+v+'.vsix'; const {execFileSync}=require('child_process'); execFileSync('vsce',['publish','--packagePath',p],{stdio:'inherit',env:process.env}); execFileSync('ovsx',['publish',p],{stdio:'inherit',env:process.env});\"",
+    "publish:openvsx": "npm run package && node -e \"require('dotenv').config({path:'.env'}); const v=require('./package.json').version; const p='true-colors-'+v+'.vsix'; require('child_process').execFileSync('ovsx',['publish',p],{stdio:'inherit',env:process.env});\"",
     "pretest": "npm run compile"
   },
   "devDependencies": {

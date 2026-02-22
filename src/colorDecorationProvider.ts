@@ -2,6 +2,11 @@ import * as vscode from 'vscode';
 import { parseColorValue, toRgbaString, ParsedColor } from './colorParser';
 import { parseTailwindClass, resolveTailwindColor } from './tailwindParser';
 
+export interface ContextColor {
+    context: string;
+    color: ParsedColor;
+}
+
 interface ColorDecoration {
     decoration: vscode.TextEditorDecorationType;
     range: vscode.Range;
@@ -15,11 +20,11 @@ interface ColorWithContext {
 
 export class ColorDecorationProvider {
     private decorations: Map<string, ColorDecoration[]> = new Map();
-    private colorVariables: Map<string, Map<string, ParsedColor>> = new Map(); // documentUri -> varName -> color
     private globalColorVariables: Map<string, ParsedColor> = new Map(); // Global registry of all color variables
     private contextualColorVariables: Map<string, Map<string, ColorWithContext>> = new Map(); // varName -> context -> color
     private decorationCache: Map<string, vscode.TextEditorDecorationType> = new Map(); // LRU cache: decorations by color string
     private readonly MAX_CACHE_SIZE = 100; // Limit cache size to prevent memory leak
+    private decorationStyle: string = vscode.workspace.getConfiguration('trueColors').get<string>('decorationStyle', 'highlight');
     private detectedContexts: Set<string> = new Set(); // Track detected contexts (.light, .dark, etc.)
 
     /**
@@ -124,18 +129,13 @@ export class ColorDecorationProvider {
     public updateDecorations(document: vscode.TextDocument): void {
         const text = document.getText();
         const lines = text.split('\n');
-        
-        // Use the global color variables (already context-aware from initial scan)
-        // Don't re-scan here as it would lose context information
-        const variableColors = this.colorVariables.get(document.uri.toString()) || new Map<string, ParsedColor>();
-        
-        // Only scan this document if it's the first time or if it's a CSS file that needs re-scanning
-        if (variableColors.size === 0 && document.languageId === 'css') {
-            // Re-scan with context awareness
+
+        // If the global registry is empty (e.g. extension just activated on a CSS file
+        // before the workspace scan completed), do a one-off merge scan so decorations
+        // appear without wiping context data contributed by other CSS files.
+        if (this.globalColorVariables.size === 0 && document.languageId === 'css') {
             const content = document.getText();
-            this.scanCssContentForColors(document.fileName, content);
-            
-            // After scanning, rebuild for current mode
+            this.scanCssContentForColors(document.fileName, content, { merge: true });
             const config = vscode.workspace.getConfiguration('trueColors');
             const mode = config.get<string>('colorMode', 'auto');
             this.rebuildGlobalVariablesForMode(mode);
@@ -161,7 +161,6 @@ export class ColorDecorationProvider {
 
         // Now add variable name decorations for CSS definitions
         lines.forEach((line, lineIndex) => {
-            // Reset lastIndex for global regex reuse
             cssVarPattern2.lastIndex = 0;
             let match;
             
@@ -169,30 +168,18 @@ export class ColorDecorationProvider {
                 try {
                     const varName = match[1];
                     const value = match[2].trim();
-                    // Use global color variables (context-aware)
                     const color = this.globalColorVariables.get(varName);
 
                     if (color) {
-                        // Highlight the variable name
                         const varNameStart = match.index;
                         const varNameRange = new vscode.Range(lineIndex, varNameStart, lineIndex, varNameStart + varName.length);
-                        decorations.push({ 
-                            decoration: this.createDecoration(color, document, varNameRange), 
-                            range: varNameRange, 
-                            color 
-                        });
+                        decorations.push({ decoration: this.createDecoration(color), range: varNameRange, color });
 
-                        // Highlight the value
                         const valueStart = match.index + match[0].indexOf(value);
                         const valueRange = new vscode.Range(lineIndex, valueStart, lineIndex, valueStart + value.length);
-                        decorations.push({ 
-                            decoration: this.createDecoration(color, document, valueRange), 
-                            range: valueRange, 
-                            color 
-                        });
+                        decorations.push({ decoration: this.createDecoration(color), range: valueRange, color });
                     }
                 } catch (error) {
-                    // Skip this variable if processing fails
                     continue;
                 }
             }
@@ -200,7 +187,6 @@ export class ColorDecorationProvider {
 
         // Second pass: Find all var(--variable-name) usages
         lines.forEach((line, lineIndex) => {
-            // Reset lastIndex for global regex reuse
             varPattern.lastIndex = 0;
             let match;
             
@@ -209,20 +195,14 @@ export class ColorDecorationProvider {
                     const varName = match[1] || match[2];
                     if (!varName) continue;
                     
-                    // Use global color variables (context-aware)
                     const color = this.globalColorVariables.get(varName);
 
                     if (color) {
                         const varNameStart = match.index + match[0].indexOf(varName);
                         const range = new vscode.Range(lineIndex, varNameStart, lineIndex, varNameStart + varName.length);
-                        decorations.push({ 
-                            decoration: this.createDecoration(color, document, range),
-                            range,
-                            color 
-                        });
+                        decorations.push({ decoration: this.createDecoration(color), range, color });
                     }
                 } catch (error) {
-                    // Skip this usage if processing fails
                     continue;
                 }
             }
@@ -234,7 +214,6 @@ export class ColorDecorationProvider {
             document.languageId === 'typescript' ||
             document.languageId === 'javascript') {
             
-            // Pre-compile regex for better performance
             const stringPattern = /["']([^"']*(?:text-|bg-|border-|hover:|focus:)[^"']*)["']/g;
             const whitespacePattern = /\s+/;
             
@@ -244,14 +223,12 @@ export class ColorDecorationProvider {
                     const classString = match[1];
                     const classStringStart = match.index + 1; // +1 to skip opening quote
                     
-                    // Split and process classes
                     const classes = classString.split(whitespacePattern);
                     
                     for (const cls of classes) {
                         if (!cls) continue;
                         
                         try {
-                            // Find actual position in line (handles multiple spaces correctly)
                             const clsStart = line.indexOf(cls, classStringStart);
                             if (clsStart === -1) continue;
                             
@@ -261,14 +238,13 @@ export class ColorDecorationProvider {
                                 if (color) {
                                     const range = new vscode.Range(lineIndex, clsStart, lineIndex, clsStart + cls.length);
                                     decorations.push({ 
-                                        decoration: this.createDecoration(color, document, range),
+                                        decoration: this.createDecoration(color),
                                         range,
                                         color 
                                     });
                                 }
                             }
                         } catch (error) {
-                            // Skip this class if parsing fails
                             continue;
                         }
                     }
@@ -298,40 +274,48 @@ export class ColorDecorationProvider {
         });
     }
 
-    private createDecoration(
-        color: ParsedColor,
-        document: vscode.TextDocument,
-        range: vscode.Range
-    ): vscode.TextEditorDecorationType {
+    private createDecoration(color: ParsedColor): vscode.TextEditorDecorationType {
         const colorString = toRgbaString(color);
-        
-        // Check if decoration already exists in cache (LRU)
-        const cached = this.decorationCache.get(colorString);
+        const cacheKey = `${this.decorationStyle}:${colorString}`;
+
+        const cached = this.decorationCache.get(cacheKey);
         if (cached) {
-            // Move to end (most recently used) - O(1) operation
-            this.decorationCache.delete(colorString);
-            this.decorationCache.set(colorString, cached);
+            this.decorationCache.delete(cacheKey);
+            this.decorationCache.set(cacheKey, cached);
             return cached;
         }
-        
-        // Calculate if the color is light or dark for text contrast
+
         const brightness = (color.red * 299 + color.green * 587 + color.blue * 114) / 1000;
         const isDark = brightness < 128;
-        const textColor = isDark ? '#ffffff' : '#000000'; // Use white text on dark backgrounds, black on light
+        const borderColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
 
-        // Create new decoration
-        const decoration = vscode.window.createTextEditorDecorationType({
-            backgroundColor: colorString,
-            color: textColor,
-            border: `1px solid ${isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'}`,
-            borderRadius: '3px',
-            gutterIconPath: this.createColorIcon(colorString),
-            gutterIconSize: 'contain',
-        });
+        let decoration: vscode.TextEditorDecorationType;
 
-        // Store in cache with LRU eviction
+        if (this.decorationStyle === 'patch') {
+            const swatchUri = this.createSegmentedSwatchIcon([colorString]);
+            decoration = vscode.window.createTextEditorDecorationType({
+                before: {
+                    contentIconPath: swatchUri,
+                    margin: '0 0.3em 0 0',
+                },
+                gutterIconPath: this.createColorIcon(colorString),
+                gutterIconSize: 'contain',
+            });
+        } else {
+            // Default: highlight the whole token
+            const textColor = isDark ? '#ffffff' : '#000000';
+            decoration = vscode.window.createTextEditorDecorationType({
+                backgroundColor: colorString,
+                color: textColor,
+                border: `1px solid ${borderColor}`,
+                borderRadius: '3px',
+                gutterIconPath: this.createColorIcon(colorString),
+                gutterIconSize: 'contain',
+            });
+        }
+
+        // LRU eviction
         if (this.decorationCache.size >= this.MAX_CACHE_SIZE) {
-            // Evict least recently used (first entry in Map) - O(1) operation
             const oldestKey = this.decorationCache.keys().next().value;
             if (oldestKey) {
                 const oldDecoration = this.decorationCache.get(oldestKey);
@@ -342,21 +326,44 @@ export class ColorDecorationProvider {
             }
         }
         
-        this.decorationCache.set(colorString, decoration);
-
+        this.decorationCache.set(cacheKey, decoration);
         return decoration;
     }
 
+    public getContextualColorsMap(): Map<string, ContextColor[]> {
+        const result = new Map<string, ContextColor[]>();
+        this.contextualColorVariables.forEach((contexts, varName) => {
+            result.set(varName, Array.from(contexts.entries())
+                .map(([ctx, cwc]) => ({ context: ctx, color: cwc.color }))
+                .sort((a, b) => a.context.localeCompare(b.context)));
+        });
+        return result;
+    }
+
+    public clearDecorationCache(): void {
+        this.decorationCache.forEach((decoration) => {
+            decoration.dispose();
+        });
+        this.decorationCache.clear();
+        this.decorationStyle = vscode.workspace.getConfiguration('trueColors').get<string>('decorationStyle', 'highlight');
+    }
+
     private createColorIcon(color: string): vscode.Uri {
-        // Create SVG data URI for the color square
         const size = 16;
-        const svg = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <rect width="${size}" height="${size}" fill="${color}" stroke="#333" stroke-width="1" rx="2"/>
-            </svg>
-        `;
-        const encoded = Buffer.from(svg).toString('base64');
-        return vscode.Uri.parse(`data:image/svg+xml;base64,${encoded}`);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" fill="${color}" stroke="#333" stroke-width="1" rx="2"/></svg>`;
+        return vscode.Uri.parse(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
+    }
+
+    private createSegmentedSwatchIcon(colorStrings: string[], segSize = 14): vscode.Uri {
+        const n = colorStrings.length;
+        const gap = 2; // gap between segments
+        const totalW = n * segSize + (n - 1) * gap;
+        const rects = colorStrings.map((cs, i) => {
+            const x = i * (segSize + gap);
+            return `<rect x="${x}" y="0" width="${segSize}" height="${segSize}" rx="2" fill="${cs}"/><rect x="${x}" y="0" width="${segSize}" height="${segSize}" rx="2" fill="none" stroke="rgba(128,128,128,0.5)" stroke-width="1"/>`;
+        }).join('');
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${segSize}" viewBox="0 0 ${totalW} ${segSize}">${rects}</svg>`;
+        return vscode.Uri.parse(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
     }
 
     private clearDecorations(documentUri: string): void {
@@ -389,9 +396,7 @@ export class ColorDecorationProvider {
     }
 
     public clearDocumentColors(documentUri: string): void {
-        // Clear decorations and color variables for a specific document
         this.clearDecorations(documentUri);
-        this.colorVariables.delete(documentUri);
     }
 
     public getColorVariableCount(): number {
@@ -456,7 +461,6 @@ export class ColorDecorationProvider {
             });
         });
         this.decorations.clear();
-        this.colorVariables.clear();
         this.globalColorVariables.clear();
         
         // Dispose all cached decorations

@@ -8,6 +8,7 @@ let decorationProvider: ColorDecorationProvider | undefined;
 let hoverProvider: CssVariableHoverProvider | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
 let fileChangeTimer: NodeJS.Timeout | undefined;
+let enabledLanguagesCache: Set<string> | undefined;
 
 const SUPPORTED_LANGUAGES = ['css', 'typescript', 'typescriptreact', 'javascript', 'javascriptreact'];
 const FILE_TYPE_TO_LANGUAGE: Record<string, string> = {
@@ -54,14 +55,16 @@ function getEnabledFileTypes(): string[] {
 }
 
 function getEnabledLanguages(): Set<string> {
+    if (enabledLanguagesCache) {
+        return enabledLanguagesCache;
+    }
     const validConfigured = getEnabledFileTypes()
         .map((fileType) => FILE_TYPE_TO_LANGUAGE[fileType]);
 
-    if (validConfigured.length === 0) {
-        return new Set(SUPPORTED_LANGUAGES);
-    }
-
-    return new Set(validConfigured);
+    enabledLanguagesCache = validConfigured.length === 0
+        ? new Set(SUPPORTED_LANGUAGES)
+        : new Set(validConfigured);
+    return enabledLanguagesCache;
 }
 
 function isDecorationEnabledForLanguage(languageId: string): boolean {
@@ -133,59 +136,22 @@ export function activate(context: vscode.ExtensionContext) {
     // Register for when files are saved (to refresh color variables)
     const saveDisposable = vscode.workspace.onDidSaveTextDocument((document) => {
         if (document.languageId === 'css') {
-            try {
-                // Re-scan CSS file to update context-aware colors
-                const fileContent = fs.readFileSync(document.uri.fsPath, 'utf8');
-                decorationProvider?.scanCssContentForColors(document.fileName, fileContent);
-                
-                // Rebuild for current mode
-                const config = vscode.workspace.getConfiguration('trueColors');
-                const mode = config.get<string>('colorMode', 'auto');
-                decorationProvider?.rebuildGlobalVariablesForMode(mode);
-                
-                // Update hover provider
-                if (decorationProvider && hoverProvider) {
-                    hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
-                }
-                
-                // Refresh all visible editors
-                refreshVisibleEditors();
-            } catch (error) {
-                log(`Error refreshing after save: ${error}`);
-            }
+            // Re-scan ALL CSS files so multi-file context data (e.g. .light in one file,
+            // .dark in another) is not wiped when a single file is saved.
+            initializeColorVariables().catch((error) => log(`Error refreshing after save: ${error}`));
         }
     });
 
     // Watch for CSS file changes with debouncing
     const fileWatcher = vscode.workspace.createFileSystemWatcher('**/*.css');
     
-    const refreshAllAfterCssChange = async (uri: vscode.Uri) => {
-        // Clear previous timer
+    const refreshAllAfterCssChange = (_uri: vscode.Uri) => {
         if (fileChangeTimer) {
             clearTimeout(fileChangeTimer);
         }
-        
-        // Debounce CSS file changes
-        fileChangeTimer = setTimeout(async () => {
-            try {
-                const fileContent = fs.readFileSync(uri.fsPath, 'utf8');
-                decorationProvider?.scanCssContentForColors(uri.fsPath, fileContent);
-                
-                // Rebuild for current mode
-                const config = vscode.workspace.getConfiguration('trueColors');
-                const mode = config.get<string>('colorMode', 'auto');
-                decorationProvider?.rebuildGlobalVariablesForMode(mode);
-                
-                // Update hover provider
-                if (decorationProvider && hoverProvider) {
-                    hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
-                }
-                
-                // Refresh all visible editors
-                refreshVisibleEditors();
-            } catch (error) {
-                log(`Error refreshing after CSS change: ${error}`);
-            }
+        // Debounce: re-scan ALL CSS files so context data from other files is preserved.
+        fileChangeTimer = setTimeout(() => {
+            initializeColorVariables().catch((error) => log(`Error refreshing after CSS change: ${error}`));
         }, DEBOUNCE_DELAY_MS);
     };
     
@@ -206,7 +172,6 @@ export function activate(context: vscode.ExtensionContext) {
         async () => {
             vscode.window.showInformationMessage('Refreshing CSS color variables...');
             await initializeColorVariables();
-            refreshVisibleEditors();
             vscode.window.showInformationMessage('CSS colors refreshed!');
         }
     );
@@ -258,6 +223,7 @@ export function activate(context: vscode.ExtensionContext) {
                 // Update hover provider
                 if (decorationProvider && hoverProvider) {
                     hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
+                    hoverProvider.updateContextualVariables(decorationProvider.getContextualColorsMap());
                 }
                 
                 refreshVisibleEditors();
@@ -353,18 +319,65 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
     
+    const switchDecorationStyleCommand = vscode.commands.registerCommand(
+        'cssColorPreview.switchDecorationStyle',
+        async () => {
+            const config = vscode.workspace.getConfiguration('trueColors');
+            const currentStyle = config.get<string>('decorationStyle', 'highlight');
+
+            const items = [
+                {
+                    label: 'highlight',
+                    description: 'Full background highlight on the token',
+                    detail: 'The entire variable / class name is filled with the color',
+                    picked: currentStyle === 'highlight',
+                },
+                {
+                    label: 'patch',
+                    description: 'Small color swatch before the token',
+                    detail: 'A tiny color chip appears inline; the text itself is unstyled',
+                    picked: currentStyle === 'patch',
+                },
+            ];
+
+            const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: `Current style: ${currentStyle}`,
+                title: 'True Colors: Select Decoration Style',
+            });
+
+            if (selected && selected.label !== currentStyle) {
+                await config.update('decorationStyle', selected.label, vscode.ConfigurationTarget.Global);
+                vscode.window.showInformationMessage(`True Colors: Decoration style set to "${selected.label}"`);
+            }
+        }
+    );
+
     // Listen for configuration changes
     const configDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('trueColors.colorMode') || event.affectsConfiguration('trueColors.enabledLanguages')) {
+        if (
+            event.affectsConfiguration('trueColors.colorMode') ||
+            event.affectsConfiguration('trueColors.enabledLanguages') ||
+            event.affectsConfiguration('trueColors.decorationStyle')
+        ) {
+            if (event.affectsConfiguration('trueColors.enabledLanguages')) {
+                enabledLanguagesCache = undefined;
+            }
             const config = vscode.workspace.getConfiguration('trueColors');
             const mode = config.get<string>('colorMode', 'auto');
             
             // Rebuild colors for new mode
             decorationProvider?.rebuildGlobalVariablesForMode(mode);
             
+            // When decoration style changes, flush the decoration type cache so
+            // the next render creates fresh decorations for the new style
+            if (event.affectsConfiguration('trueColors.decorationStyle')) {
+                decorationProvider?.clearDecorationCache();
+            }
+            
             // Update hover provider
             if (decorationProvider && hoverProvider) {
                 hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
+                hoverProvider.updateContextualVariables(decorationProvider.getContextualColorsMap());
             }
             
             refreshVisibleEditors();
@@ -378,6 +391,7 @@ export function activate(context: vscode.ExtensionContext) {
         refreshCommand,
         switchModeCommand,
         switchFileTypesCommand,
+        switchDecorationStyleCommand,
         configDisposable,
         fileWatcher,
         hoverProviderDisposable
@@ -449,6 +463,7 @@ async function initializeColorVariables() {
     // Update hover provider with color variables
     if (decorationProvider && hoverProvider) {
         hoverProvider.updateGlobalVariables(decorationProvider.getGlobalColorVariables());
+        hoverProvider.updateContextualVariables(decorationProvider.getContextualColorsMap());
     }
     
     // Now update all currently visible editors with the loaded colors
